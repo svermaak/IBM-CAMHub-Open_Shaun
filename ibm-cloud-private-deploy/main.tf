@@ -22,48 +22,22 @@ provider "openstack" {
     insecure    = true
 }
 
-resource "random_id" "rand" {
-    byte_length = 2
-}
-
-resource "openstack_compute_keypair_v2" "icp-key-pair" {
-    name       = "terraform-icp-key-pair-${random_id.rand.hex}"
-    public_key = "${file("${var.openstack_ssh_key_file}.pub")}"
-}
-
-resource "openstack_compute_instance_v2" "icp-worker-vm" {
-    count     = "${var.icp_num_workers}"
+resource "openstack_compute_instance_v2" {
     name      = "${format("terraform-icp-worker-${random_id.rand.hex}-%02d", count.index+1)}"
     image_id  = "${var.openstack_image_id}"
     flavor_id = "${var.openstack_flavor_id_worker_node}"
-    key_pair  = "${openstack_compute_keypair_v2.icp-key-pair.name}"
 
     network {
         name = "${var.openstack_network_name}"
     }
-
-    user_data = "${file("bootstrap_icp_worker.sh")}"
 }
 
-resource "openstack_compute_instance_v2" "icp-master-vm" {
+resource "openstack_compute_instance_v2" {
     name      = "terraform-icp-master-${random_id.rand.hex}"
     image_id  = "${var.openstack_image_id}"
     flavor_id = "${var.openstack_flavor_id_master_node}"
-    key_pair  = "${openstack_compute_keypair_v2.icp-key-pair.name}"
-
-    personality {
-        file    = "/root/id_rsa.terraform"
-        content = "${file("${var.openstack_ssh_key_file}")}"
-    }
-
-    personality {
-        file    = "/root/icp_worker_nodes.txt"
-        content = "${join("|", openstack_compute_instance_v2.icp-worker-vm.*.network.0.fixed_ip_v4)}"
-    }
 
     network {
         name = "${var.openstack_network_name}"
     }
-
-    user_data = "${file("${var.bootstrap_icp_master_file}")}"
 }
